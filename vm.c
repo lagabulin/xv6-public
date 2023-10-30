@@ -288,12 +288,25 @@ freevm(pde_t *pgdir)
   if(pgdir == 0)
     panic("freevm: no pgdir");
   deallocuvm(pgdir, KERNBASE, 0);
+
+  /* Original codes(Commented)
   for(i = 0; i < NPDENTRIES; i++){
     if(pgdir[i] & PTE_P){
       char * v = P2V(PTE_ADDR(pgdir[i]));
       kfree(v);
     }
   }
+  */
+  
+  
+  for(i = 0; i < (NPDENTRIES >> 1); i++){
+    if(pgdir[i] & PTE_P){
+      char * v = P2V(PTE_ADDR(pgdir[i]));
+      kfree(v);
+    }
+  } 
+  
+  
   kfree((char*)pgdir);
 }
 
@@ -320,8 +333,22 @@ copyuvm(pde_t *pgdir, uint sz)
   uint pa, i, flags;
   char *mem;
 
-  if((d = setupkvm()) == 0)
+/* Modified codes 1 - begin */
+  char *child_kmap, *parent_kmap;
+
+  if((d = (pde_t*)kalloc()) == 0)
     return 0;
+  
+  child_kmap = (char *) &(d[512]);
+  parent_kmap = (char *) &(pgdir[512]);
+  memset(d, 0 , PGSIZE);
+  memmove(child_kmap, parent_kmap, PGSIZE >> 1);
+/* Modified codes 1 - end */
+
+/* Original codes(commented) */
+//  if((d = setupkvm()) == 0)
+//    return 0;
+  
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");

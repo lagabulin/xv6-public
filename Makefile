@@ -182,6 +182,7 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_test\
+	_forkexectest\
 	_practice1\
 	_practice2\
 	_practice3\

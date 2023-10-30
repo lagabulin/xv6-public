@@ -34,9 +34,21 @@ exec(char *path, char **argv)
     goto bad;
   if(elf.magic != ELF_MAGIC)
     goto bad;
-
+  
+  /* Origianl codes(Commented)
   if((pgdir = setupkvm()) == 0)
     goto bad;
+  */
+
+  /* Modified codes 2 - begin */
+  if((pgdir = (pde_t*)kalloc()) == 0)
+    goto bad;
+  
+  oldpgdir = curproc->pgdir;
+
+  memset(pgdir, 0, PGSIZE);
+  memmove((char *) &(pgdir[512]), (char *) &(oldpgdir[512]), PGSIZE >> 1);
+  /* Modified codes 2 - end */
 
   // Load program into memory.
   sz = 0;
@@ -94,7 +106,9 @@ exec(char *path, char **argv)
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
   // Commit to the user image.
+  /* Original code(Commented) 
   oldpgdir = curproc->pgdir;
+  */
   curproc->pgdir = pgdir;
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
