@@ -191,6 +191,7 @@ UPROGS=\
 	_practice6\
 	_practice7\
 	_practice8\
+	_testlock\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
