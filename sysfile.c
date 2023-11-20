@@ -456,4 +456,34 @@ sys_testlock(void)
     return 0;
 }
 
+int
+sys_peeklock(void)
+{
+	int *dest, size;
+	struct sleeplock *target;
+	struct proc *cur_proc;
+	int i;
+
+	if(argint(1, &size)<0)
+		return -1;
+	if(argptr(0, (void*)&dest, size * sizeof(dest[0]) ) < 0)
+		return -1;
+	i = 0;
+	target = (struct sleeplock*)0x8010a5c0;
+	
+	acquire(&target->lk);
+
+	cur_proc = target->head;
+	while(i < size && cur_proc != 0)
+	{
+	  dest[i] = cur_proc->pid;
+	  cur_proc = cur_proc->next;
+	  i++;
+	}
+
+	release(&target->lk);
+	return i;
+}
+
+
 
