@@ -16,7 +16,6 @@ main()
 			sleep(100);
 		}
 		else{
-			sleep((10-i)*300);
 			break;
 		}
 	}
