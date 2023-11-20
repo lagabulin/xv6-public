@@ -194,6 +194,7 @@ UPROGS=\
 	_testlock\
 	_testlock2\
 	_testlock3\
+	_testlock4\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
