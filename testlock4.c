@@ -14,11 +14,13 @@ main()
 		
 		if(pid == 0){
 		    if(10 <= i && i < 20){
-				sleep(3000 - i*100);
+				sleep(2000 - i*100);
 				exit();
 			}
-			else
-				while(1){}
+			else{
+				sleep(4000);
+				exit();
+			}
 		}
 	}
 
@@ -40,7 +42,7 @@ main()
 	if (pid) {
 		sleep(1000);
 		testlock();
-		for (i = 0; i<10; i++)
+		for (i = 0; i<61; i++)
 			wait();
 	}
 	else {

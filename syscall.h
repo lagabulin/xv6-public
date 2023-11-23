@@ -22,3 +22,5 @@
 #define SYS_close  21
 #define SYS_testlock 22
 #define SYS_peeklock 23
+#define SYS_testlock2 24
+#define SYS_peeklock2 25

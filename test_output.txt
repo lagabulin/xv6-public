@@ -1,9 +1,9 @@
 qemu-system-i386 -serial mon:stdio -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 2 -m 512 
 xv6...
 cpu0: starting 0
-sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+sb: size 10000 nblocks 9939 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
 init: starting sh
-$ test    ./testlock3
+$ testesloc     lock3
 TEST #0
 process 0 is created
 process 1 is created
