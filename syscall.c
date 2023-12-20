@@ -107,6 +107,8 @@ extern int sys_testlock(void);
 extern int sys_peeklock(void);
 extern int sys_testlock2(void);
 extern int sys_peeklock2(void);
+extern int sys_sematest(void);
+extern int sys_rwsematest(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -134,6 +136,8 @@ static int (*syscalls[])(void) = {
 [SYS_peeklock] sys_peeklock,
 [SYS_testlock2] sys_testlock2,
 [SYS_peeklock2] sys_peeklock2,
+[SYS_sematest] sys_sematest,
+[SYS_rwsematest] sys_rwsematest,
 };
 
 void

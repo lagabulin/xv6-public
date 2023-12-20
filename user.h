@@ -27,6 +27,8 @@ int testlock(void);
 int peeklock(int*, int);
 int testlock2(void);
 int peeklock2(int*, int);
+int sematest(int);
+int rwsematest(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

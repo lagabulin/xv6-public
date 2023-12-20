@@ -24,3 +24,5 @@
 #define SYS_peeklock 23
 #define SYS_testlock2 24
 #define SYS_peeklock2 25
+#define SYS_sematest 26
+#define SYS_rwsematest 27

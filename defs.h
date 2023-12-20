@@ -9,6 +9,8 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct semaphore;
+struct rwsemaphore;
 
 // bio.c
 void            binit(void);
@@ -155,6 +157,16 @@ int             argstr(int, char**);
 int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
+
+// sysfile.c - Projedct 5(Semaphore)
+void            initsema(struct semaphore*, int);
+int             downsema(struct semaphore*);
+int             upsema(struct semaphore*);
+void            initrwsema(struct rwsemaphore*);
+void            downreadsema(struct rwsemaphore*);
+void            upreadsema(struct rwsemaphore*);
+void            downwritesema(struct rwsemaphore*);
+void            upwritesema(struct rwsemaphore*);
 
 // timer.c
 void            timerinit(void);
