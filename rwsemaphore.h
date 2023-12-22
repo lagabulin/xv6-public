@@ -1,5 +1,7 @@
-struct rwsemaphore
-{
+struct rwsemaphore{
 	struct spinlock lk;
-	int sema_value;
+	struct proc *reader_head;
+	struct proc *writer_head;
+	uint reading;
+	uint writing;
 };

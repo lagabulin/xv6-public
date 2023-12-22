@@ -6,23 +6,13 @@
 #include "mmu.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "sleeplock.h"
 #include "semaphore.h"
-
-/*
-struct semaphore{
-  uint locked;       // Is the lock held?
-  struct spinlock lk; // spinlock protecting this sleep lock
-  struct proc *head;  
-  int count;
-};
-*/
 
 void initsema(struct semaphore *lk, int count)
 {
-	initlock(&lk->lk, "sleep lock");
+	initlock(&lk->lk, "semaphore");
 	lk->count = count;
-	lk->head = 0;
+	lk->head = (struct proc*) 0;
 }
 
 int downsema(struct semaphore *lk)
@@ -39,7 +29,7 @@ int downsema(struct semaphore *lk)
 
 	*curr = my_proc;
 
-	if(lk->count == 0){
+	while(lk->count == 0 || lk->head != my_proc){
 		sleep(&(my_proc->next), &lk->lk);
 	}
 	

@@ -1,6 +1,5 @@
 struct semaphore{
-  uint locked;       // Is the lock held?
-  struct spinlock lk; // spinlock protecting this sleep lock
+  struct spinlock lk;
   struct proc *head;  
   int count;
 };

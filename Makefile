@@ -201,6 +201,7 @@ UPROGS=\
 	_testlock6\
 	_sematest\
 	_rwsematest\
+	_rwsematest2\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
