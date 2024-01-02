@@ -70,14 +70,14 @@ test3(int i)
 {
 	switch (i%5) {
 		case 0:
-			writelocktest(i, 10);
+			sleep(10);
+			writelocktest(i, 50);
 			break;
 		case 1:
 		case 2:
 			sleep(25 + i*10);
 		case 3:
 		case 4:
-			sleep(100);
 			readlocktest(i, 50 + i*10);
 	}
 }
@@ -90,9 +90,12 @@ main()
 
 	printf(1, "\nread lock test\n");
 	starttest(50, test1, 0);
-	
+	/*
+	printf(1, "\nwrite lock test\n");
+	starttest(50, test2, 0);
+	*/
 	printf(1, "\nread & write lock test\n");
-	starttest(50, test3, 1);
+	starttest(50, test3, 0);
 
 	exit();
 }
