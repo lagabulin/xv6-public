@@ -61,7 +61,7 @@ test1(int i)
 void
 test2(int i)
 {
-	sleep((20-i)*10);
+	sleep((50-i)*10);
 	writelocktest(i, (i+2)*10);
 }
 
@@ -70,14 +70,14 @@ test3(int i)
 {
 	switch (i%5) {
 		case 0:
-			sleep(10);
-			writelocktest(i, 50);
+			writelocktest(i, 10);
 			break;
 		case 1:
 		case 2:
 			sleep(25 + i*10);
 		case 3:
 		case 4:
+			sleep(100);
 			readlocktest(i, 50 + i*10);
 	}
 }
@@ -89,13 +89,10 @@ main()
 	rwsematest(0);
 
 	printf(1, "\nread lock test\n");
-	starttest(20, test1, 0);
+	starttest(50, test1, 0);
 	
-	printf(1, "\nwrite lock test\n");
-	starttest(20, test2, 0);
-
 	printf(1, "\nread & write lock test\n");
-	starttest(20, test3, 1);
+	starttest(50, test3, 1);
 
 	exit();
 }

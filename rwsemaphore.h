@@ -4,4 +4,5 @@ struct rwsemaphore{
 	struct proc *writer_head;
 	uint reading;
 	uint writing;
+	uint numFlush;
 };

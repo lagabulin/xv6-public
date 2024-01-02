@@ -15,6 +15,7 @@ void initrwsema(struct rwsemaphore *lk)
 	lk->writer_head = (struct proc*) 0;
 	lk->reading = 0;
 	lk->writing = 0;
+	lk->numFlush = 0;
 }
 
 void downreadsema(struct rwsemaphore *lk)
@@ -32,6 +33,10 @@ void downreadsema(struct rwsemaphore *lk)
 	
 	while(lk->reader_head != my_proc || lk->writing != 0 || lk->writer_head != 0){
 		sleep(&(my_proc->next), &lk->lk);
+		if(lk->numFlush != 0){
+			lk->numFlush--;
+			break;
+		}
 	}
 
 	lk->reading++;
@@ -50,7 +55,7 @@ void upreadsema(struct rwsemaphore *lk)
 	acquire(&lk->lk);
 
 	lk->reading--;
-	if(lk->reading == 0 && lk->writer_head != 0){
+	if(lk->reading == 0 && lk->numFlush == 0 && lk->writer_head != 0){
 		wakeup(&(lk->writer_head->next));
 	} 
 
@@ -87,11 +92,15 @@ void upwritesema(struct rwsemaphore *lk)
 	
 	lk->writing = 0;
 	
-	if(lk->writer_head != 0){
-		wakeup(&(lk->writer_head->next));
-	} 
-	else if (lk->reader_head != 0) {
+	if(lk->reader_head != 0){
+		struct proc **curr;	
+		for(curr = &(lk->reader_head); *curr; curr = &(*curr)->next){
+			lk->numFlush++;
+		}
 		wakeup(&(lk->reader_head->next));
+	} 
+	else if (lk->writer_head != 0) {
+		wakeup(&(lk->writer_head->next));
 	} 
 
 	release(&lk->lk);
