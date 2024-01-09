@@ -94,7 +94,7 @@ mythread(void)
   int i;
   printf(1, "my thread running\n");
   for (i = 0; i < 100; i++) {
-    printf(1, "my thread 0x%x\n", (int) current_thread);
+    printf(1, "%d: my thread 0x%x\n", i, (int) current_thread);
     thread_yield();
   }
   printf(1, "my thread: exit\n");
