@@ -90,10 +90,12 @@ main()
 
 	printf(1, "\nread lock test\n");
 	starttest(50, test1, 0);
+
 	/*
 	printf(1, "\nwrite lock test\n");
 	starttest(50, test2, 0);
 	*/
+
 	printf(1, "\nread & write lock test\n");
 	starttest(50, test3, 0);
 
