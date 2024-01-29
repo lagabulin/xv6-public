@@ -22,6 +22,7 @@ static thread_t all_thread[MAX_THREAD];
 thread_p  current_thread;
 thread_p  next_thread;
 extern void thread_switch(void);
+extern void usertrapret();
 
 void 
 thread_init(void)
@@ -66,6 +67,8 @@ thread_schedule(void)
     next_thread = 0;
 }
 
+void thread_yield(void);
+
 void 
 thread_create(void (*func)())
 {
@@ -79,6 +82,7 @@ thread_create(void (*func)())
   * (int *) (t->sp) = (int)func;           // push return address on stack
   t->sp -= 32;                             // space for registers that thread_switch expects
   t->state = RUNNABLE;
+  uthread_create(thread_yield, usertrapret, (int**)&next_thread);
 }
 
 void 
@@ -92,16 +96,33 @@ static void
 mythread(void)
 {
   int i;
-  printf(1, "my thread running\n");
-  for (i = 0; i < 100; i++) {
-    printf(1, "%d: my thread 0x%x\n", i, (int) current_thread);
-    thread_yield();
+  printf(1, "my thread running 0x%x\n", (int) current_thread);
+  // Kernel mode timer interrupt test
+  
+  for (i = 0; i < 1000; i++){
+   	printf(1, "%d: my thread 0x%x\n", i, (int) current_thread);
+	//thread_yield();
   }
-  printf(1, "my thread: exit\n");
+  
+    
+  // User mode timer interrupt test
+  
+  int j = 0;
+  int k = 0;
+  for (k = 0; k< 10; k++){
+		  printf(1, "%dth iteration: my thread 0x%x\n", k, (int) current_thread);
+	  for (i = 0; i < 2147483647; i++) {
+		  if(i&1) j += 1;
+		  else j -= 1;
+	  }
+  }
+  
+  printf(1, "0x%x: %d\n",(int) current_thread, j);
+  printf(1, "my thread 0x%x: exit\n", (int) current_thread);
+  
   current_thread->state = FREE;
   thread_schedule();
 }
-
 
 int 
 main(int argc, char *argv[]) 

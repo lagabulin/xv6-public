@@ -29,6 +29,7 @@ int testlock2(void);
 int peeklock2(int*, int);
 int sematest(int);
 int rwsematest(int);
+int uthread_create(void (*)(void), void (*)(void), int**);
 
 // ulib.c
 int stat(const char*, struct stat*);

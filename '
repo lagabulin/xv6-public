@@ -56,26 +56,16 @@ trap(struct trapframe *tf)
     }
     lapiceoi();
 	/* Add new code here */
-
 	struct proc *curr_proc = myproc();
-	if(curr_proc &&\
-			curr_proc->scheduler != 0 &&\
-			*(uint*)curr_proc->next_thread == 0){
-		
-		if((tf->cs&3) == 0){
-			curr_proc->tf->eip = curr_proc->scheduler;
-		}
-		if((tf->cs&3) == DPL_USER){
-			tf->esp -= sizeof(struct trapframe) - 8;
-			memmove((void*)(tf->esp), tf, sizeof(struct trapframe) - 8);
-			tf->eip = curr_proc->scheduler;
-
-			tf->esp -=4;
-			*(uint*)tf->esp = curr_proc->usertrapret;
-		}
-	}
-	
-	
+	if(curr_proc && (curr_proc->tf->cs&3) == DPL_USER && curr_proc->scheduler !=0) {
+		// Requirements
+		// 1. state should be RUNNABLE
+		// 2. scheudler -> switch -> switch back -> original code
+		// myproc()->tf->esp -= 4;
+		// *(uint*)(myproc()->tf->esp) = myproc()->tf->eip;
+		curr_proc->tf->eip = curr_proc->scheduler;
+		// *(curr_proc->curr_thread_state) = 2;
+    }
     break;
   case T_IRQ0 + IRQ_IDE:
     ideintr();

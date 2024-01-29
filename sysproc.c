@@ -90,4 +90,26 @@ sys_uptime(void)
   return xticks;
 }
 
+// Project 6
+int
+sys_uthread_create(void)
+{
+  struct proc *p;
+  int func;
+  int trapretfunc;
+  int next_thread;
 
+  if (argint(0, &func) < 0)
+    return -1;
+  if (argint(1, &trapretfunc) < 0)
+	return -1;
+  if (argint(2, &next_thread) < 0)
+	return -1;
+  p = myproc();
+
+  if (p->scheduler == 0)
+    p->scheduler = (uint)func;
+    p->usertrapret = (uint)trapretfunc;
+	p->next_thread = (uint)next_thread;
+  return 0;
+}

@@ -112,6 +112,10 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  p->scheduler = 0;
+  p->usertrapret = 0;
+  p->next_thread = 0;
+
   return p;
 }
 

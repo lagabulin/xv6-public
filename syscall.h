@@ -26,3 +26,4 @@
 #define SYS_peeklock2 25
 #define SYS_sematest 26
 #define SYS_rwsematest 27
+#define SYS_uthread_create 28

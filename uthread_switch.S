@@ -12,10 +12,19 @@ thread_switch:
 	movl %esp, (%eax)
 
 	movl next_thread, %eax
+	movl (%eax), %esp
 	movl %eax, current_thread
 	movl $0x0, next_thread
 	
-	movl current_thread, %eax
-	movl (%eax), %esp
 	popal
 	ret				/* pop return address from stack */
+
+	.globl usertrapret
+usertrapret:
+	popal
+	popl %gs
+	popl %fs
+	popl %es
+	popl %ds
+	addl $0x8, %esp
+	iret
