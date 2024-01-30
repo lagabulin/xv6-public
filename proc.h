@@ -52,9 +52,7 @@ struct proc {
   struct proc *next;           // Next sleeping  process in chan
   uint scheduler;              // address of user level scheduler function.
   uint usertrapret;			   // address of thread stack trapret function.
-  uint curr_thread;            // address of current_thread(struct double pointer)
   uint next_thread;            // address of next_thread(struct double pointer)
-  uint main_thread;            // address of main_thread(struct pointer)
 };
 
 // Process memory is laid out contiguously, low addresses first:

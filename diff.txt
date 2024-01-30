@@ -1,58 +1,268 @@
-diff --git a/rwsemaphore.c b/rwsemaphore.c
-index dbd6b87..bd1a0ca 100644
---- a/rwsemaphore.c
-+++ b/rwsemaphore.c
-@@ -15,6 +15,7 @@ void initrwsema(struct rwsemaphore *lk)
- 	lk->writer_head = (struct proc*) 0;
- 	lk->reading = 0;
- 	lk->writing = 0;
-+	lk->alternating = 0;
+diff --git a/Makefile b/Makefile
+index 38fb577..44c5c4c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -158,6 +158,10 @@ _forktest: forktest.o $(ULIB)
+ 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
+ 	$(OBJDUMP) -S _forktest > forktest.asm
+ 
++_uthread: uthread.o uthread_switch.o
++	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _uthread uthread.o uthread_switch.o $(ULIB)
++	$(OBJDUMP) -S _uthread > uthread.asm
++
+ mkfs: mkfs.c fs.h
+ 	gcc -Werror -Wall -o mkfs mkfs.c
+ 
+@@ -202,6 +206,7 @@ UPROGS=\
+ 	_sematest\
+ 	_rwsematest\
+ 	_rwsematest2\
++	_uthread\
+ 
+ fs.img: mkfs README $(UPROGS)
+ 	./mkfs fs.img README $(UPROGS)
+diff --git a/proc.c b/proc.c
+index 806b1b1..d13857a 100644
+--- a/proc.c
++++ b/proc.c
+@@ -112,6 +112,10 @@ found:
+   memset(p->context, 0, sizeof *p->context);
+   p->context->eip = (uint)forkret;
+ 
++  p->scheduler = 0;
++  p->usertrapret = 0;
++  p->next_thread = 0;
++
+   return p;
  }
  
- void downreadsema(struct rwsemaphore *lk)
-@@ -32,12 +33,16 @@ void downreadsema(struct rwsemaphore *lk)
- 	
- 	while(lk->reader_head != my_proc || lk->writing != 0 || lk->writer_head != 0){
- 		sleep(&(my_proc->next), &lk->lk);
-+		if(lk->alternating != 0){
-+			lk->alternating = 0;
-+			break;
-+		}
- 	}
- 
- 	lk->reading++;
- 	lk->reader_head = lk->reader_head->next;
- 
--	if(lk->reader_head != 0){
-+	if(lk->reader_head != 0 && lk->writer_head == 0){
- 		wakeup(&(lk->reader_head->next));
- 	}
- 
-@@ -87,12 +92,13 @@ void upwritesema(struct rwsemaphore *lk)
- 	
- 	lk->writing = 0;
- 	
--	if(lk->writer_head != 0){
--		wakeup(&(lk->writer_head->next));
--	} 
--	else if (lk->reader_head != 0) {
-+	if(lk->reader_head != 0){
-+		lk->alternating = 1;
- 		wakeup(&(lk->reader_head->next));
- 	} 
-+	else if (lk->writer_head != 0) {
-+		wakeup(&(lk->writer_head->next));
-+	} 
- 
- 	release(&lk->lk);
- }
-diff --git a/rwsemaphore.h b/rwsemaphore.h
-index fcfa38b..4c589c1 100644
---- a/rwsemaphore.h
-+++ b/rwsemaphore.h
-@@ -4,4 +4,5 @@ struct rwsemaphore{
- 	struct proc *writer_head;
- 	uint reading;
- 	uint writing;
-+	uint alternating;
+diff --git a/proc.h b/proc.h
+index e69da55..3d90067 100644
+--- a/proc.h
++++ b/proc.h
+@@ -49,7 +49,12 @@ struct proc {
+   struct file *ofile[NOFILE];  // Open files
+   struct inode *cwd;           // Current directory
+   char name[16];               // Process name (debugging)
+-  struct proc *next;            // Next sleeping  process in chan
++  struct proc *next;           // Next sleeping  process in chan
++  uint scheduler;              // address of user level scheduler function.
++  uint usertrapret;			   // address of thread stack trapret function.
++  uint curr_thread;            // address of current_thread(struct double pointer)
++  uint next_thread;            // address of next_thread(struct double pointer)
++  uint main_thread;            // address of main_thread(struct pointer)
  };
+ 
+ // Process memory is laid out contiguously, low addresses first:
+diff --git a/syscall.c b/syscall.c
+index ba84d1f..9a549f6 100644
+--- a/syscall.c
++++ b/syscall.c
+@@ -109,6 +109,7 @@ extern int sys_testlock2(void);
+ extern int sys_peeklock2(void);
+ extern int sys_sematest(void);
+ extern int sys_rwsematest(void);
++extern int sys_uthread_create(void);
+ 
+ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+@@ -138,6 +139,7 @@ static int (*syscalls[])(void) = {
+ [SYS_peeklock2] sys_peeklock2,
+ [SYS_sematest] sys_sematest,
+ [SYS_rwsematest] sys_rwsematest,
++[SYS_uthread_create] sys_uthread_create,
+ };
+ 
+ void
+diff --git a/syscall.h b/syscall.h
+index 58e6977..0b9bf1f 100644
+--- a/syscall.h
++++ b/syscall.h
+@@ -26,3 +26,4 @@
+ #define SYS_peeklock2 25
+ #define SYS_sematest 26
+ #define SYS_rwsematest 27
++#define SYS_uthread_create 28
+diff --git a/sysproc.c b/sysproc.c
+index 864b269..9ccf0c0 100644
+--- a/sysproc.c
++++ b/sysproc.c
+@@ -90,4 +90,26 @@ sys_uptime(void)
+   return xticks;
+ }
+ 
++// Project 6
++int
++sys_uthread_create(void)
++{
++  struct proc *p;
++  int func;
++  int trapretfunc;
++  int next_thread;
++
++  if (argint(0, &func) < 0)
++    return -1;
++  if (argint(1, &trapretfunc) < 0)
++	return -1;
++  if (argint(2, &next_thread) < 0)
++	return -1;
++  p = myproc();
+ 
++  if (p->scheduler == 0)
++    p->scheduler = (uint)func;
++    p->usertrapret = (uint)trapretfunc;
++	p->next_thread = (uint)next_thread;
++  return 0;
++}
+diff --git a/trap.c b/trap.c
+index 41c66eb..eb880b6 100644
+--- a/trap.c
++++ b/trap.c
+@@ -55,6 +55,27 @@ trap(struct trapframe *tf)
+       release(&tickslock);
+     }
+     lapiceoi();
++	/* Add new code here */
++
++	struct proc *curr_proc = myproc();
++	if(curr_proc &&\
++			curr_proc->scheduler != 0 &&\
++			*(uint*)curr_proc->next_thread == 0){
++		
++		if((tf->cs&3) == 0){
++			curr_proc->tf->eip = curr_proc->scheduler;
++		}
++		if((tf->cs&3) == DPL_USER){
++			tf->esp -= sizeof(struct trapframe) - 8;
++			memmove((void*)(tf->esp), tf, sizeof(struct trapframe) - 8);
++			tf->eip = curr_proc->scheduler;
++
++			tf->esp -=4;
++			*(uint*)tf->esp = curr_proc->usertrapret;
++		}
++	}
++	
++	
+     break;
+   case T_IRQ0 + IRQ_IDE:
+     ideintr();
+diff --git a/user.h b/user.h
+index d81ecd5..dbc10c6 100644
+--- a/user.h
++++ b/user.h
+@@ -29,6 +29,7 @@ int testlock2(void);
+ int peeklock2(int*, int);
+ int sematest(int);
+ int rwsematest(int);
++int uthread_create(void (*)(void), void (*)(void), int**);
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);
+diff --git a/usys.S b/usys.S
+index ce8ccb9..d1c8d04 100644
+--- a/usys.S
++++ b/usys.S
+@@ -35,3 +35,4 @@ SYSCALL(testlock2)
+ SYSCALL(peeklock2)
+ SYSCALL(sematest)
+ SYSCALL(rwsematest)
++SYSCALL(uthread_create)
+diff --git a/uthread.c b/uthread.c
+index 66fc1f8..9001163 100644
+--- a/uthread.c
++++ b/uthread.c
+@@ -22,6 +22,7 @@ static thread_t all_thread[MAX_THREAD];
+ thread_p  current_thread;
+ thread_p  next_thread;
+ extern void thread_switch(void);
++extern void usertrapret();
+ 
+ void 
+ thread_init(void)
+@@ -66,6 +67,8 @@ thread_schedule(void)
+     next_thread = 0;
+ }
+ 
++void thread_yield(void);
++
+ void 
+ thread_create(void (*func)())
+ {
+@@ -79,6 +82,7 @@ thread_create(void (*func)())
+   * (int *) (t->sp) = (int)func;           // push return address on stack
+   t->sp -= 32;                             // space for registers that thread_switch expects
+   t->state = RUNNABLE;
++  uthread_create(thread_yield, usertrapret, (int**)&next_thread);
+ }
+ 
+ void 
+@@ -92,17 +96,34 @@ static void
+ mythread(void)
+ {
+   int i;
+-  printf(1, "my thread running\n");
+-  for (i = 0; i < 100; i++) {
+-    printf(1, "my thread 0x%x\n", (int) current_thread);
+-    thread_yield();
++  printf(1, "my thread running 0x%x\n", (int) current_thread);
++  // Kernel mode timer interrupt test
++  
++  for (i = 0; i < 1000; i++){
++   	printf(1, "%d: my thread 0x%x\n", i, (int) current_thread);
++	//thread_yield();
++  }
++  
++    
++  // User mode timer interrupt test
++  
++  int j = 0;
++  int k = 0;
++  for (k = 0; k< 10; k++){
++		  printf(1, "%dth iteration: my thread 0x%x\n", k, (int) current_thread);
++	  for (i = 0; i < 2147483647; i++) {
++		  if(i&1) j += 1;
++		  else j -= 1;
++	  }
+   }
+-  printf(1, "my thread: exit\n");
++  
++  printf(1, "0x%x: %d\n",(int) current_thread, j);
++  printf(1, "my thread 0x%x: exit\n", (int) current_thread);
++  
+   current_thread->state = FREE;
+   thread_schedule();
+ }
+ 
+-
+ int 
+ main(int argc, char *argv[]) 
+ {
+diff --git a/uthread_switch.S b/uthread_switch.S
+index 904c4f6..539f970 100644
+--- a/uthread_switch.S
++++ b/uthread_switch.S
+@@ -7,4 +7,24 @@
+ 	.globl thread_switch
+ thread_switch:
+ 	/* YOUR CODE HERE */
++	pushal
++	movl current_thread, %eax
++	movl %esp, (%eax)
++
++	movl next_thread, %eax
++	movl (%eax), %esp
++	movl %eax, current_thread
++	movl $0x0, next_thread
++	
++	popal
+ 	ret				/* pop return address from stack */
++
++	.globl usertrapret
++usertrapret:
++	popal
++	popl %gs
++	popl %fs
++	popl %es
++	popl %ds
++	addl $0x8, %esp
++	iret
