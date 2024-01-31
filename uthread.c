@@ -23,6 +23,7 @@ thread_p  current_thread;
 thread_p  next_thread;
 extern void thread_switch(void);
 extern void usertrapret();
+extern void new_scheduler();
 
 void 
 thread_init(void)
@@ -82,7 +83,7 @@ thread_create(void (*func)())
   * (int *) (t->sp) = (int)func;           // push return address on stack
   t->sp -= 32;                             // space for registers that thread_switch expects
   t->state = RUNNABLE;
-  uthread_create(thread_yield, usertrapret, (int**)&next_thread);
+  uthread_create(new_scheduler, usertrapret, (int**)&next_thread);
 }
 
 void 

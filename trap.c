@@ -63,7 +63,16 @@ trap(struct trapframe *tf)
 			*(uint*)curr_proc->next_thread == 0){
 		
 		if((tf->cs&3) == 0){
+			/*
+			curr_proc->tf->esp -=sizeof(struct trapframe) - 8;
+			memmove((void*)(curr_proc->tf->esp), curr_proc->tf, sizeof(struct trapframe) - 8);
+			*/
 			curr_proc->tf->eip = curr_proc->scheduler;
+			/*
+			curr_proc->tf->esp -=4;
+			*(uint*)curr_proc->tf->esp = curr_proc->usertrapret;
+			curr_proc->tf->esp += sizeof(struct trapframe) - 4;
+			*/
 		}
 		if((tf->cs&3) == DPL_USER){
 			tf->esp -= sizeof(struct trapframe) - 8;
@@ -72,6 +81,7 @@ trap(struct trapframe *tf)
 
 			tf->esp -=4;
 			*(uint*)tf->esp = curr_proc->usertrapret;
+			//tf->esp += sizeof(struct trapframe) - 4;
 		}
 	}
 	

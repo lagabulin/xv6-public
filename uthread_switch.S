@@ -28,3 +28,10 @@ usertrapret:
 	popl %ds
 	addl $0x8, %esp
 	iret
+
+	.globl new_scheduler
+new_scheduler:
+	push %eax
+	call thread_yield
+	pop %eax
+	ret
