@@ -70,7 +70,16 @@ static void
 install_trans(int boot)
 {
   int tail;
-
+  /* Original code
+  for (tail = 0; tail < log.lh.n; tail++) {
+	  struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
+	  struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
+	  memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
+	  bwrite(dbuf);  // write dst to disk
+	  brelse(lbuf);
+	  brelse(dbuf);
+  }
+  */
   if(boot != 0){
 	  for (tail = 0; tail < log.lh.n; tail++) {
 		  struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
@@ -82,12 +91,18 @@ install_trans(int boot)
 	  }
   }
   else{
+	  struct buf *hbuf = bread(log.dev, log.start);
+	  struct logheader *lh = (struct logheader *) (hbuf->data);
 	  for (tail = 0; tail < log.lh.n; tail++){
-		  struct buf *dbuf = bread(log.dev, log.lh.block[tail]);
-		  bwrite(dbuf);
-		  brelse(dbuf);
+		  struct buf *lbuf = bread(log.dev, log.start+tail+1);
+		  lbuf->blockno = lh->block[tail];
+		  bwrite(lbuf);
+		  lbuf->blockno = log.start+tail+1;
+		  brelse(lbuf);
 	  }
+	  brelse(hbuf);
   }
+  
 }
 
 // Read the log header from disk into the in-memory log header
@@ -118,6 +133,9 @@ write_head(void)
     hb->block[i] = log.lh.block[i];
   }
   bwrite(buf);
+
+  buf->flags |= B_DIRTY; // prevent eviction permanently to allow in-memory log struct to be modified during checkpoint
+  
   brelse(buf);
 }
 
@@ -193,7 +211,10 @@ write_log(void)
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
     memmove(to->data, from->data, BSIZE);
     bwrite(to);  // write the log
-    brelse(from);
+
+    to->flags |= B_DIRTY; // prevent eviction for optimized install_trans()
+	from->flags &= ~B_DIRTY; // to allocate buffer caches to system calls during checkpoint    
+	brelse(from);
     brelse(to);
   }
 }
