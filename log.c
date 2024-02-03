@@ -49,7 +49,7 @@ struct log log;
 
 static void recover_from_log(void);
 static void commit();
-
+void daemon_test();
 void
 initlog(int dev)
 {
@@ -63,6 +63,7 @@ initlog(int dev)
   log.size = sb.nlog;
   log.dev = dev;
   recover_from_log();
+  daemon(commit, (uint)daemon_test);
 }
 
 // Copy committed blocks from log to their home location
@@ -225,6 +226,7 @@ commit()
   if (log.lh.n > 0) {
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
+	wakeup(commit);
     install_trans(0); // Now install writes to home locations
     log.lh.n = 0;
     write_head();    // Erase the transaction from the log
@@ -260,5 +262,17 @@ log_write(struct buf *b)
     log.lh.n++;
   b->flags |= B_DIRTY; // prevent eviction
   release(&log.lock);
+}
+
+void
+daemon_test()
+{
+	static int i = 1;
+	acquire(&log.lock);
+	for(;;)
+	{
+		cprintf("%d\n",i++);
+		sleep(commit, &log.lock);
+	}
 }
 

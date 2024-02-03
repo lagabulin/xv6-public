@@ -536,3 +536,53 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int
+daemon(void* chan, uint func)
+{
+  int i, pid;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  // Copy process state from proc.
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
+  np->sz = curproc->sz;
+  np->parent = curproc;
+  *np->tf = *curproc->tf;
+  
+  memset(np->tf, 0, sizeof(*np->tf));
+  np->tf->cs = (SEG_KCODE << 3) | 0;
+  np->tf->ds = (SEG_KDATA << 3) | 0;
+  np->tf->es = np->tf->ds;
+  np->tf->ss = np->tf->ds;
+  np->tf->eflags = FL_IF;
+  np->tf->eip = func;  // beginning of initcode.S
+  
+  for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  pid = np->pid;
+
+  acquire(&ptable.lock);
+
+  np->state = SLEEPING;
+  np->chan = chan;
+
+  release(&ptable.lock);
+
+  return pid;
+}
