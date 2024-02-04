@@ -50,7 +50,7 @@ struct log log;
 
 struct protected_buf {
 	int n;
-	struct buf pbuf[LOGSIZE];
+	struct buf* pbuf[LOGSIZE];
 };
 
 struct protected_buf protected_buf;
@@ -75,11 +75,6 @@ initlog(int dev)
   recover_from_log();
   if((daemon_pid = daemon(checkpoint, (uint)checkpoint)) <= 0)
 	  panic("Checkpoint daemon");
-  int i;
-  for(i = 0; i < LOGSIZE; i++){
-	  struct sleeplock *lk = &protected_buf.pbuf[i].lock;
-	  initsleeplock(lk, "protected_buf");
-  }
 }
 
 // Copy committed blocks from log to their home location
@@ -109,11 +104,11 @@ install_trans(int boot)
   }
   else{
 	  int i;
-	  for (i = 0; i < protected_buf.n; i++){
-		  struct buf *pbuf = &protected_buf.pbuf[i];
-		  acquiresleep(&pbuf->lock);
+	  for (i = protected_buf.n - 1; i >= 0; i--){
+		  struct buf *pbuf = protected_buf.pbuf[i];
+		  pbuf->lock.pid = daemon_pid;
 		  bwrite(pbuf);
-		  releasesleep(&pbuf->lock);
+		  brelse(pbuf);
 	  }
   }
   
@@ -231,16 +226,11 @@ write_log(void)
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
-    struct buf *pbuf = &protected_buf.pbuf[tail];
 	memmove(to->data, from->data, BSIZE);
 
-	pbuf->dev = from->dev;
-	pbuf->blockno = from->blockno;
-	memmove(pbuf->data, from->data, BSIZE);
+	protected_buf.pbuf[tail] = from; // released by the daemon
 
     bwrite(to);  // write the log
-	from->flags &= ~B_DIRTY;
-    brelse(from);
 	brelse(to);
   }
 }
