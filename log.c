@@ -48,6 +48,15 @@ struct log {
 };
 struct log log;
 
+struct protected_buf {
+	int n;
+	struct buf pbuf[LOGSIZE];
+};
+
+struct protected_buf protected_buf;
+
+static int daemon_pid;
+
 static void recover_from_log(void);
 static void commit();
 void checkpoint();
@@ -64,8 +73,13 @@ initlog(int dev)
   log.size = sb.nlog;
   log.dev = dev;
   recover_from_log();
-  if(daemon(checkpoint, (uint)checkpoint) <= 0)
+  if((daemon_pid = daemon(checkpoint, (uint)checkpoint)) <= 0)
 	  panic("Checkpoint daemon");
+  int i;
+  for(i = 0; i < LOGSIZE; i++){
+	  struct sleeplock *lk = &protected_buf.pbuf[i].lock;
+	  initsleeplock(lk, "protected_buf");
+  }
 }
 
 // Copy committed blocks from log to their home location
@@ -94,17 +108,13 @@ install_trans(int boot)
 	  }
   }
   else{
-	  struct buf *hbuf = bread(log.dev, log.start);
-	  struct logheader *lh = (struct logheader *) (hbuf->data);
-	  for (tail = 0; tail < log.lh.n; tail++){
-		  struct buf *lbuf = bread(log.dev, log.start+tail+1);
-		  // BUG: blockno should be protected by bcache.lock, but bwrite() cannot be called by a process holding locks.
-		  lbuf->blockno = lh->block[tail];
-		  bwrite(lbuf);
-		  lbuf->blockno = log.start+tail+1;
-		  brelse(lbuf);
+	  int i;
+	  for (i = 0; i < protected_buf.n; i++){
+		  struct buf *pbuf = &protected_buf.pbuf[i];
+		  acquiresleep(&pbuf->lock);
+		  bwrite(pbuf);
+		  releasesleep(&pbuf->lock);
 	  }
-	  brelse(hbuf);
   }
   
 }
@@ -137,9 +147,6 @@ write_head(void)
     hb->block[i] = log.lh.block[i];
   }
   bwrite(buf);
-
-  buf->flags |= B_DIRTY; // prevent eviction permanently to allow in-memory log struct to be modified during checkpoint
-  
   brelse(buf);
 }
 
@@ -204,6 +211,11 @@ end_op(void)
     commit();
     acquire(&log.lock);
     log.committing = 0;
+	if(log.lh.n > 0){
+		log.checkpointing = 1;
+		log.lh.n = 0;
+		wakeup(checkpoint);
+	}
     wakeup(&log);
     release(&log.lock);
   }
@@ -215,16 +227,21 @@ write_log(void)
 {
   int tail;
 
+  protected_buf.n = log.lh.n;
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
-    memmove(to->data, from->data, BSIZE);
-    bwrite(to);  // write the log
+    struct buf *pbuf = &protected_buf.pbuf[tail];
+	memmove(to->data, from->data, BSIZE);
 
-    to->flags |= B_DIRTY; // prevent eviction for optimized install_trans()
-	from->flags &= ~B_DIRTY; // to allocate buffer caches to system calls during checkpoint    
-	brelse(from);
-    brelse(to);
+	pbuf->dev = from->dev;
+	pbuf->blockno = from->blockno;
+	memmove(pbuf->data, from->data, BSIZE);
+
+    bwrite(to);  // write the log
+	from->flags &= ~B_DIRTY;
+    brelse(from);
+	brelse(to);
   }
 }
 
@@ -234,8 +251,6 @@ commit()
   if (log.lh.n > 0) {
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
-	log.checkpointing = 1;
-	wakeup(checkpoint);
   }
 }
 
@@ -274,11 +289,9 @@ void
 checkpoint()
 {
 //	static int i = 1;
-	acquire(&log.lock);
 	for(;;)
 	{
 		//cprintf("%d\n",i++);
-		release(&log.lock); // install_trans() calls sleep() inside, so this daemon should release the other locks.
 	
 		/* Original checkpoint codes
 		install_trans(0); // Now install writes to home locations
@@ -298,6 +311,7 @@ checkpoint()
 		log.checkpointing = 0;
 		wakeup(&log.checkpointing); // wakeup the next committing thread.
 		sleep(checkpoint, &log.lock);
+		release(&log.lock);
 	}
 }
 
