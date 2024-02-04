@@ -42,6 +42,7 @@ struct log {
   int size;
   int outstanding; // how many FS sys calls are executing.
   int committing;  // in commit(), please wait.
+  int checkpointing;
   int dev;
   struct logheader lh;
 };
@@ -49,7 +50,7 @@ struct log log;
 
 static void recover_from_log(void);
 static void commit();
-void daemon_test();
+void checkpoint();
 void
 initlog(int dev)
 {
@@ -63,7 +64,8 @@ initlog(int dev)
   log.size = sb.nlog;
   log.dev = dev;
   recover_from_log();
-  daemon(commit, (uint)daemon_test);
+  if(daemon(checkpoint, (uint)checkpoint) <= 0)
+	  panic("Checkpoint daemon");
 }
 
 // Copy committed blocks from log to their home location
@@ -191,6 +193,11 @@ end_op(void)
   release(&log.lock);
 
   if(do_commit){
+	acquire(&log.lock);
+	while(log.checkpointing != 0){
+		sleep(&log.checkpointing, &log.lock);
+	}
+	release(&log.lock);
     // call commit w/o holding locks, since not allowed
     // to sleep with locks.
     commit();
@@ -226,10 +233,8 @@ commit()
   if (log.lh.n > 0) {
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
-	wakeup(commit);
-    install_trans(0); // Now install writes to home locations
-    log.lh.n = 0;
-    write_head();    // Erase the transaction from the log
+	log.checkpointing = 1;
+	wakeup(checkpoint);
   }
 }
 
@@ -265,14 +270,33 @@ log_write(struct buf *b)
 }
 
 void
-daemon_test()
+checkpoint()
 {
-	static int i = 1;
+//	static int i = 1;
 	acquire(&log.lock);
 	for(;;)
 	{
-		cprintf("%d\n",i++);
-		sleep(commit, &log.lock);
+		//cprintf("%d\n",i++);
+		release(&log.lock); // install_trans() calls sleep() inside, so this daemon should release the other locks.
+	
+		/* Original checkpoint codes
+		install_trans(0); // Now install writes to home locations
+    	log.lh.n = 0;
+    	write_head();    // Erase the transaction from the log
+		*/
+
+		/* Modified checkpoint code */
+		install_trans(0);
+		struct buf *buf = bread(log.dev, log.start);
+  		struct logheader *hb = (struct logheader *) (buf->data);
+  		hb->n = 0;
+  		bwrite(buf);
+  		brelse(buf);
+
+		acquire(&log.lock);
+		log.checkpointing = 0;
+		wakeup(&log.checkpointing); // wakeup the next committing thread.
+		sleep(checkpoint, &log.lock);
 	}
 }
 
