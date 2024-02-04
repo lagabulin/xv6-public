@@ -98,6 +98,7 @@ install_trans(int boot)
 	  struct logheader *lh = (struct logheader *) (hbuf->data);
 	  for (tail = 0; tail < log.lh.n; tail++){
 		  struct buf *lbuf = bread(log.dev, log.start+tail+1);
+		  // BUG: blockno should be protected by bcache.lock, but bwrite() cannot be called by a process holding locks.
 		  lbuf->blockno = lh->block[tail];
 		  bwrite(lbuf);
 		  lbuf->blockno = log.start+tail+1;
