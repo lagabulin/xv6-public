@@ -80,8 +80,9 @@ initlog(int dev)
 
 // Copy committed blocks from log to their home location
 static void
-install_trans(int boot)
+install_trans()
 {
+  static int boot = 1;
   int tail;
   if(boot != 0){
 	  for (tail = 0; tail < log.lh.n; tail++) {
@@ -92,11 +93,11 @@ install_trans(int boot)
           brelse(lbuf);
           brelse(dbuf);
 	  }
+	  boot = 0;
   }
   else{
-	  int i;
-	  for (i = 0; i < protected_buf.n; i++){
-		  struct buf *pbuf = protected_buf.pbuf[i];
+	  for (tail = 0; tail < protected_buf.n; tail++){
+		  struct buf *pbuf = protected_buf.pbuf[tail];
 		  bwrite(pbuf);
 		  brelse(pbuf);
 	  }
@@ -139,7 +140,7 @@ static void
 recover_from_log(void)
 {
   read_head();
-  install_trans(1); // if committed, copy from log to disk
+  install_trans(); // if committed, copy from log to disk
   log.lh.n = 0;
   write_head(); // clear the log
 }
@@ -272,7 +273,7 @@ checkpoint()
 {
 	for(;;)
 	{
-		install_trans(0);
+		install_trans();
 		struct buf *buf = bread(log.dev, log.start);
   		struct logheader *hb = (struct logheader *) (buf->data);
   		hb->n = 0;
