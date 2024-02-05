@@ -198,12 +198,12 @@ end_op(void)
     commit();
     acquire(&log.lock);
     log.committing = 0;
+	wakeup(&log);
 	if(log.lh.n > 0){
 		log.checkpointing = 1;
 		log.lh.n = 0;
 		wakeup(checkpoint);
 	}
-    wakeup(&log);
     release(&log.lock);
   }
 }
@@ -282,7 +282,7 @@ checkpoint()
 
 		acquire(&log.lock);
 		log.checkpointing = 0;
-		wakeup(&log.checkpointing); // wakeup the next committing thread.
+		wakeup(&log.checkpointing);
 		sleep(checkpoint, &log.lock);
 		release(&log.lock);
 	}
