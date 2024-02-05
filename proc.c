@@ -558,7 +558,6 @@ daemon(void* chan, uint func)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
-  *np->tf = *curproc->tf;
   
   memset(np->tf, 0, sizeof(*np->tf));
   np->tf->cs = (SEG_KCODE << 3) | 0;

@@ -59,7 +59,8 @@ static int daemon_pid;
 
 static void recover_from_log(void);
 static void commit();
-void checkpoint();
+static void checkpoint();
+
 void
 initlog(int dev)
 {
@@ -82,16 +83,6 @@ static void
 install_trans(int boot)
 {
   int tail;
-  /* Original code
-  for (tail = 0; tail < log.lh.n; tail++) {
-	  struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
-	  struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
-	  memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
-	  bwrite(dbuf);  // write dst to disk
-	  brelse(lbuf);
-	  brelse(dbuf);
-  }
-  */
   if(boot != 0){
 	  for (tail = 0; tail < log.lh.n; tail++) {
 		  struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
@@ -104,9 +95,8 @@ install_trans(int boot)
   }
   else{
 	  int i;
-	  for (i = protected_buf.n - 1; i >= 0; i--){
+	  for (i = 0; i < protected_buf.n; i++){
 		  struct buf *pbuf = protected_buf.pbuf[i];
-		  pbuf->lock.pid = daemon_pid;
 		  bwrite(pbuf);
 		  brelse(pbuf);
 	  }
@@ -201,6 +191,7 @@ end_op(void)
 		sleep(&log.checkpointing, &log.lock);
 	}
 	release(&log.lock);
+
     // call commit w/o holding locks, since not allowed
     // to sleep with locks.
     commit();
@@ -229,6 +220,7 @@ write_log(void)
 	memmove(to->data, from->data, BSIZE);
 
 	protected_buf.pbuf[tail] = from; // released by the daemon
+	from->lock.pid = daemon_pid;
 
     bwrite(to);  // write the log
 	brelse(to);
@@ -275,21 +267,11 @@ log_write(struct buf *b)
   release(&log.lock);
 }
 
-void
+static void
 checkpoint()
 {
-//	static int i = 1;
 	for(;;)
 	{
-		//cprintf("%d\n",i++);
-	
-		/* Original checkpoint codes
-		install_trans(0); // Now install writes to home locations
-    	log.lh.n = 0;
-    	write_head();    // Erase the transaction from the log
-		*/
-
-		/* Modified checkpoint code */
 		install_trans(0);
 		struct buf *buf = bread(log.dev, log.start);
   		struct logheader *hb = (struct logheader *) (buf->data);
